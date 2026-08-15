@@ -1,0 +1,44 @@
+name: Update job map data
+
+on:
+  schedule:
+    # Tous les jours à 05h00 UTC (~07h00 heure de Paris en été)
+    - cron: "0 5 * * *"
+  workflow_dispatch: {}  # permet de lancer manuellement depuis l'onglet Actions
+
+permissions:
+  contents: write
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run scraper
+        env:
+          ADZUNA_APP_ID: ${{ secrets.ADZUNA_APP_ID }}
+          ADZUNA_APP_KEY: ${{ secrets.ADZUNA_APP_KEY }}
+          JOOBLE_API_KEY: ${{ secrets.JOOBLE_API_KEY }}
+        run: python scraper.py
+
+      - name: Commit & push if data changed
+        run: |
+          git config user.name "job-map-bot"
+          git config user.email "actions@github.com"
+          git add data/jobs.geojson
+          if git diff --staged --quiet; then
+            echo "Aucun changement détecté."
+          else
+            git commit -m "Auto-update job data $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            git push
+          fi
